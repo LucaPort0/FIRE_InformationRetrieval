@@ -207,10 +207,16 @@ def evaluate(path, id, score):
         else:
             aux2 += 1
 
-    map = (res/len(score))
-    recall = (union/len(d))
-    precision = (union/len(score))
-    f1 = 2 * ((precision*recall)/(precision + recall))
+    if len(score) == 0:
+        map = 0
+        precision = 0
+        recall = 0
+        f1 = 0
+    else:
+        map = (res/len(score))
+        recall = (union/len(d))
+        precision = (union/len(score))
+        f1 = 2 * ((precision*recall)/(precision + recall))
     
     print('Recall:', recall)
     print('Precision:', precision)
@@ -245,39 +251,52 @@ terms = scan_folder("/home/user/Desktop/TopBD/Projeto/FIRE2010/en.doc.2010/TELEG
 queries = readQueries("/home/user/Desktop/TopBD/Projeto/FIRE2010/en.topics.76-125.2010.txt", queries)
 print('Concluido\n')
 
-print('Insira o número da comparação a ser feita:\n1 Indexacao com e sem stopwords\n2 Indexação com e sem radicalizacao\n3 Comparacao entre modelo vetorial e probabilistico\n')
+print('Insira o número da comparação a ser feita:\n1 Indexacao com e sem stopwords\n2 Indexação com e sem radicalizacao\n0 Para sair\n')
 operation = input()
 
 print('\nEscolha a query a ser analisada(76 a 125)\n')
 q = input()
 
-print('Analise original\n')
-scores = vectorModel(terms, queries, q, nDocs, 0.80)
-evaluation = evaluate("/home/user/Desktop/TopBD/Projeto/FIRE2010/en.qrels.76-125.2010.txt", int(q), scores)
-print(queries[q])
-
-if operation == '1': # Analise sem Stopwords
-    print('\nAnalise sem Stopwords\n')
-    terms = stopWords(terms)
-    aux = queries[q]
-    aux2 = [word for word in aux if not word in stop]
-    queries[q] = aux2
-    scores = vectorModel(terms, queries, q, nDocs, 0.80)
+while(operation != 0):
+    termos = terms.copy()
+    buscas = queries.copy()
+    print('Analise original\n')
+    scores = vectorModel(termos, buscas, q, nDocs, 0.80)
     evaluation = evaluate("/home/user/Desktop/TopBD/Projeto/FIRE2010/en.qrels.76-125.2010.txt", int(q), scores)
+    print(buscas[q])
 
-elif operation == '2': # Analise com Stemming
-    print('\nAnalise com Stemming')
-    ps = PorterStemmer()
-    terms = wordStemmer(terms)
-    aux2 = []
-    for word in queries[q]:
-        aux = ps.stem(word)
-        aux2.append(aux)
 
-    queries[q] = aux2
-    scores = vectorModel(terms, queries, q, nDocs, 0.60)
-    print(scores)
-    evaluation = evaluate("/home/user/Desktop/TopBD/Projeto/FIRE2010/en.qrels.76-125.2010.txt", int(q), scores)
-    
+    if operation == '1': # Analise sem Stopwords
+        print('\nAnalise sem Stopwords\n')
+        termos = stopWords(termos)
+        aux = buscas[q]
+        aux2 = [word for word in aux if not word in stop]
+        buscas[q] = aux2
+        scores = vectorModel(termos, buscas, q, nDocs, 0.80)
+        evaluation = evaluate("/home/user/Desktop/TopBD/Projeto/FIRE2010/en.qrels.76-125.2010.txt", int(q), scores)
+
+    elif operation == '2': # Analise com Stemming
+        print('\nAnalise com Stemming')
+        ps = PorterStemmer()
+        termos = stopWords(termos)
+        termos = wordStemmer(termos)
+        aux = buscas[q]
+        aux1 = [word for word in aux if not word in stop]
+        buscas[q] = aux1
+        aux2 = []
+        for word in buscas[q]:
+            aux = ps.stem(word)
+            aux2.append(aux)
+
+        buscas[q] = aux2
+        scores = vectorModel(termos, buscas, q, nDocs, 0.70)
+        print(scores)
+        evaluation = evaluate("/home/user/Desktop/TopBD/Projeto/FIRE2010/en.qrels.76-125.2010.txt", int(q), scores)
+
+    print('Insira o número da comparação a ser feita:\n1 Indexacao com e sem stopwords\n2 Indexação com e sem radicalizacao\n0 Para sair\n')
+    operation = input()
+
+    print('\nEscolha a query a ser analisada(76 a 125)\n')
+    q = input()
 
 print(' %s seconds ' % (time.time() - start_time))
