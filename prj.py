@@ -26,21 +26,32 @@ def sortDict(d):
     
     return od
 
+# Function that removes the stopwords from the a dictionary with tokens
+def stopWords(termDict):
+    stop = stopwords.words('english')
+    stopDict = {}
+    auxDict = termDict.copy()
+
+    for word in stop:
+        stopDict[word] = ''
+
+    for token in auxDict:
+        if token in stopDict:
+            del termDict[token]
+
+    return termDict
+
 #Normalizing and tokenizing function for the files
 def normalizeFilesText(list, path):
     with open(path, "r") as f:
         list = [x.strip() for x in f.read().split()]
         
-    stop = stopwords.words('english')
-
     for i in range (len(list)):
         if i != 1: #Skiping the first element(DocID) in the list
             list[i] = re.sub(u'[^a-zA-ZáéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ<>_]', '', list[i]) #Removing punctuation
         list[i] = re.sub("[<].*?[>]", "", list[i]) #Removing everything between <>
         list[i] = list[i].lower() #lowercasing elements
-        if list[i] in stop:
-            list[i] = ''
-        
+
     while '' in list: #Remove null elements in the list 
         list.remove('')
 
@@ -65,16 +76,16 @@ def readQueries(path, d):
         qrs[i] = re.sub(u'[^a-zA-ZáéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ<>_]', ' ', qrs[i]) # Normalizing
         qrs[i] = qrs[i].lower() # Lowercasing
         qrs[i] = list(qrs[i].split(' ')) # Turning the string back into a list
+    
         for j in range(len(qrs[i])):
             if qrs[i][j] in stop:
                 qrs[i][j] = ''
-        
         while '' in qrs[i]: #Removing null elements in the list 
             qrs[i].remove('')
 
         d[ids[i]] = qrs[i] # Adding id and query to the dictionary
-    return d
 
+    return d
 
 # Function that creates nested dictionaries of words
 def createNestedDict(d, tokens):
@@ -124,9 +135,8 @@ def tfIdf(term, termDict, nDocs, t):
 
 
 # Vector Model function that returns the most relevant documents for the given query
-def vectorModel(termDict, queryDict, queryID, nDocs, k):
+def vectorModel(termDict, queryDict, queryID, nDocs):
     query = queryDict[queryID]
-   # mostRelevant = []
     scores = {} # Dictionary that stores pairs of Document-Score
     length = {}
     wq = 0 # TfIdf of the term in the query
@@ -136,7 +146,6 @@ def vectorModel(termDict, queryDict, queryID, nDocs, k):
         tf = query.count(qTerm) # Counting the frequency of the term in the query
 
         wq = tfIdf(qTerm, termDict, nDocs, tf) 
-
         for doc, value in terms[qTerm].items():
             nt = value
             
@@ -151,15 +160,60 @@ def vectorModel(termDict, queryDict, queryID, nDocs, k):
     for doc, value in scores.items():
         length[doc] = math.sqrt(length[doc])
         scores[doc] = (scores[doc]/length[doc])
-
+    
     scores = sorted(scores.items(), key=lambda x: x[1], reverse = True)
 
-    return scores[:k]
+    minValue = scores[0][1]
 
-def evaluate(path):
-    return 1
+    minValue = minValue * 0.85
 
-###########################################################################################
+    i = 0
+    
+    while(scores[i][1] > minValue):
+        i += 1
+    
+    print(i)
+    return dict(scores[:i])
+
+# Function to evaluate the results
+def evaluate(path, id, score):
+    d = {}
+    union = 0
+    aux1 = 0
+    aux2 = 0
+    res = 0
+
+    # Reading the ground truth 
+    data = pd.read_csv('/home/user/Desktop/TopBD/Projeto/FIRE2010/en.qrels.76-125.2010.txt', sep= ' ', header=None, names = ['docID', 'trash', 'fileName', 'relevance'])
+
+    # Getting the relevant documents for the given query id and storing them in a dictionary
+    for i in data.index:
+        if(data['docID'][i] == id and data['relevance'][i] == 1):
+            d[data['fileName'][i]] = data['relevance'][i]
+
+    # Getting evaluation values
+    for doc in score:
+        aux1 += 1
+        if doc in d:            
+            union += 1
+            aux2 += 1
+            res += (aux2/aux1)
+        else:
+            aux2 += 1
+
+    map = (res/len(score))
+    recall = (union/len(d))
+    precision = (union/len(score))
+    f1 = 2 * ((precision*recall)/(precision + recall))
+    
+    print('Recall:', recall)
+    print('Precision:', precision)
+    print('F1:', f1)
+    print('Map:', map)
+
+    return d
+
+###################################    MAIN    ###################################################
 
 start_time = time.time()
 
@@ -167,8 +221,8 @@ tokens = [] # Token list
 terms = {} # Dictionary of terms, behaving as an inverted list
 queries = {} # Dictionary of queries and their ids
 nDocs = 0 # Numero de documentos 
-score = {} # Vetor de scores
-
+scores = {} # Vetor de scores
+evaluation = {}
 
 #print('Insira o path do diretorio TELEGRAPH_UTF8')
 #print('EX: "/home/user/Desktop/FIRE2010/en.doc.2010/TELEGRAPH_UTF8" ')
@@ -177,24 +231,26 @@ score = {} # Vetor de scores
 #print('Insira o path do arquivo com as queries')
 #print('EX: "/home/user/Desktop/FIRE2010/en.topics.76-125.2010.txt" ')
 #queries_path = input()
-
-#print('Insira o número da comparação a ser feita:\n-1 Indexacao com e sem stopwords\n-2 Indexação com e sem radicalizacao\n-3 Comparacao entre modelo vetorial e probabilistico')
-#operation = input()
-
-print('Escolha o numero K de arquivos mais relevenates a serem recuperados')
-k = int(input())
-
-print('Escolha a query a ser analisada')
-q = int(input())
-
+1
+print('Lendo e indexando os arquivos e queries(pode levar algum tempo)')
 terms = scan_folder("/home/user/Desktop/TopBD/Projeto/FIRE2010/en.doc.2010/TELEGRAPH_UTF8", tokens, terms)  # Insert parent directory's path
-
-#terms = sortDict(terms) # Sorting the terms in the dictionary
-
 queries = readQueries("/home/user/Desktop/TopBD/Projeto/FIRE2010/en.topics.76-125.2010.txt", queries)
+print('Concluido\n')
 
-score = vectorModel(terms, queries, '76', nDocs, k)
+print('Insira o número da comparação a ser feita:\n1 Indexacao com e sem stopwords\n2 Indexação com e sem radicalizacao\n3 Comparacao entre modelo vetorial e probabilistico\n')
+operation = input()
 
-#evaluation = evaluate("/home/user/Desktop/TopBD/Projeto/FIRE2010/en.qrels.76-125.2010.txt")
+print('\nEscolha a query a ser analisada(76 a 125)\n')
+q = input()
+
+print('Analise original\n')
+scores = vectorModel(terms, queries, q, nDocs)
+evaluation = evaluate("/home/user/Desktop/TopBD/Projeto/FIRE2010/en.qrels.76-125.2010.txt", int(q), scores)
+
+if operation == '1':
+    print('\nAnalise sem stopwords\n')
+    terms = stopWords(terms)
+    scores = vectorModel(terms, queries, q, nDocs)
+    evaluation = evaluate("/home/user/Desktop/TopBD/Projeto/FIRE2010/en.qrels.76-125.2010.txt", int(q), scores)
 
 print(' %s seconds ' % (time.time() - start_time))
