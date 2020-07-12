@@ -6,6 +6,7 @@ import collections
 import math
 
 from nltk.corpus import stopwords
+from nltk.stem import PorterStemmer
 import pandas as pd 
 
 # Printing function for nested dictionaries
@@ -41,6 +42,16 @@ def stopWords(termDict):
 
     return termDict
 
+# Function that stems words
+def wordStemmer(termDict):
+    ps = PorterStemmer()
+    stemmed = {}
+
+    for token, value in termDict.items():
+        stemmed[ps.stem(token)] = value
+
+    return stemmed
+
 #Normalizing and tokenizing function for the files
 def normalizeFilesText(list, path):
     with open(path, "r") as f:
@@ -70,17 +81,12 @@ def readQueries(path, d):
     getQuery = "<narr>(.*?)</narr>"
     qrs = re.findall(getQuery, text)
     
-    stop = stopwords.words('english')
-
     for i in range(len(ids)):
         qrs[i] = re.sub(u'[^a-zA-ZáéíóúÁÉÍÓÚâêîôÂÊÎÔãõÃÕçÇ<>_]', ' ', qrs[i]) # Normalizing
         qrs[i] = qrs[i].lower() # Lowercasing
         qrs[i] = list(qrs[i].split(' ')) # Turning the string back into a list
-    
-        for j in range(len(qrs[i])):
-            if qrs[i][j] in stop:
-                qrs[i][j] = ''
-        while '' in qrs[i]: #Removing null elements in the list 
+        
+        while '' in qrs[i]:
             qrs[i].remove('')
 
         d[ids[i]] = qrs[i] # Adding id and query to the dictionary
@@ -135,7 +141,7 @@ def tfIdf(term, termDict, nDocs, t):
 
 
 # Vector Model function that returns the most relevant documents for the given query
-def vectorModel(termDict, queryDict, queryID, nDocs):
+def vectorModel(termDict, queryDict, queryID, nDocs, pct):
     query = queryDict[queryID]
     scores = {} # Dictionary that stores pairs of Document-Score
     length = {}
@@ -165,7 +171,7 @@ def vectorModel(termDict, queryDict, queryID, nDocs):
 
     minValue = scores[0][1]
 
-    minValue = minValue * 0.85
+    minValue = minValue * pct
 
     i = 0
     
@@ -223,6 +229,8 @@ queries = {} # Dictionary of queries and their ids
 nDocs = 0 # Numero de documentos 
 scores = {} # Vetor de scores
 evaluation = {}
+stop = stopwords.words('english')
+
 
 #print('Insira o path do diretorio TELEGRAPH_UTF8')
 #print('EX: "/home/user/Desktop/FIRE2010/en.doc.2010/TELEGRAPH_UTF8" ')
@@ -231,7 +239,7 @@ evaluation = {}
 #print('Insira o path do arquivo com as queries')
 #print('EX: "/home/user/Desktop/FIRE2010/en.topics.76-125.2010.txt" ')
 #queries_path = input()
-1
+
 print('Lendo e indexando os arquivos e queries(pode levar algum tempo)')
 terms = scan_folder("/home/user/Desktop/TopBD/Projeto/FIRE2010/en.doc.2010/TELEGRAPH_UTF8", tokens, terms)  # Insert parent directory's path
 queries = readQueries("/home/user/Desktop/TopBD/Projeto/FIRE2010/en.topics.76-125.2010.txt", queries)
@@ -244,13 +252,32 @@ print('\nEscolha a query a ser analisada(76 a 125)\n')
 q = input()
 
 print('Analise original\n')
-scores = vectorModel(terms, queries, q, nDocs)
+scores = vectorModel(terms, queries, q, nDocs, 0.80)
 evaluation = evaluate("/home/user/Desktop/TopBD/Projeto/FIRE2010/en.qrels.76-125.2010.txt", int(q), scores)
+print(queries[q])
 
-if operation == '1':
-    print('\nAnalise sem stopwords\n')
+if operation == '1': # Analise sem Stopwords
+    print('\nAnalise sem Stopwords\n')
     terms = stopWords(terms)
-    scores = vectorModel(terms, queries, q, nDocs)
+    aux = queries[q]
+    aux2 = [word for word in aux if not word in stop]
+    queries[q] = aux2
+    scores = vectorModel(terms, queries, q, nDocs, 0.80)
     evaluation = evaluate("/home/user/Desktop/TopBD/Projeto/FIRE2010/en.qrels.76-125.2010.txt", int(q), scores)
+
+elif operation == '2': # Analise com Stemming
+    print('\nAnalise com Stemming')
+    ps = PorterStemmer()
+    terms = wordStemmer(terms)
+    aux2 = []
+    for word in queries[q]:
+        aux = ps.stem(word)
+        aux2.append(aux)
+
+    queries[q] = aux2
+    scores = vectorModel(terms, queries, q, nDocs, 0.60)
+    print(scores)
+    evaluation = evaluate("/home/user/Desktop/TopBD/Projeto/FIRE2010/en.qrels.76-125.2010.txt", int(q), scores)
+    
 
 print(' %s seconds ' % (time.time() - start_time))
